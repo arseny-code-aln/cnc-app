@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNC Mobile Pro</title>
+    
+    <!-- PWA манифест и тема -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+
+    <!-- Подключаем Three.js, OrbitControls и STLLoader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body onload="initApp()">
+
+    <header>
+        <h1 id="page-title">Фрезерные режимы</h1>
+    </header>
+
+    <div class="content">
+        <!-- 1. Фрезерные режимы -->
+        <div id="tab-regimes" class="tab-pane active">
+            <div class="card">
+                <h3>Фрезерные режимы</h3>
+                <div class="form-group"><label>Материал</label><select id="reg-mat"></select></div>
+                <div class="form-group"><label>Диаметр (мм)</label><input type="number" id="reg-d" value="12"></div>
+                <div class="form-group"><label>Зубья (Z)</label><input type="number" id="reg-z" value="4"></div>
+                <button class="btn" onclick="calcRegimes()">Рассчитать</button>
+                <div id="reg-res" class="result-box" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 2. Токарные режимы -->
+        <div id="tab-turning" class="tab-pane">
+            <div class="card">
+                <h3>Токарные режимы</h3>
+                <div class="form-group"><label>Диаметр (мм)</label><input type="number" id="turn-d" value="50"></div>
+                <div class="form-group"><label>Скорость Vc (м/мин)</label><input type="number" id="turn-vc" value="200"></div>
+                <div class="form-group"><label>Подача fr (мм/об)</label><input type="number" id="turn-fr" value="0.25" step="0.05"></div>
+                <button class="btn" onclick="calcTurning()">Рассчитать</button>
+                <div id="turn-res" class="result-box" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 3. Инспектор G-кода -->
+        <div id="tab-gcode" class="tab-pane">
+            <div class="card">
+                <h3>Проверка G-кода</h3>
+                <div class="form-group"><label>Код</label><textarea id="gc-text" rows="5" placeholder="G90...">G00 X0 Y0 Z25
+G01 X30 Y0 Z-5 F200
+G01 X30 Y30 Z-5
+G01 X0 Y30 Z-5
+G01 X0 Y0 Z-5
+G00 Z25</textarea></div>
+                <button class="btn" onclick="validateCode()">Проверить</button>
+                <div id="gc-res" class="result-box" style="display:none;"></div>
+                <button class="btn btn-secondary" style="margin-top:10px;" onclick="exportCurrentGCode('prog')">💾 Сохранить</button>
+            </div>
+        </div>
+
+        <!-- 4. Время и Стоимость -->
+        <div id="tab-timecost" class="tab-pane">
+            <div class="card">
+                <h3>Время и Стоимость</h3>
+                <div class="form-group"><label>G-код</label><textarea id="tc-gcode" rows="4"></textarea></div>
+                <div class="form-group"><label>Ставка (руб/ч)</label><input type="number" id="tc-rate" value="2500"></div>
+                <div class="form-group"><label>Подготовка (руб)</label><input type="number" id="tc-setup" value="500"></div>
+                <button class="btn" onclick="calcTimeCost()">Рассчитать</button>
+                <div id="tc-res" class="result-box" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 5. Справочники -->
+        <div id="tab-handbook" class="tab-pane">
+            <div class="card">
+                <h3>🔩 Резьбы и сверла</h3>
+                <div class="form-group"><label>Номинал (М)</label><input type="number" id="th-nom" value="10"></div>
+                <div class="form-group"><label>Шаг (мм)</label><input type="number" id="th-pitch" value="1.5" step="0.25"></div>
+                <button class="btn" onclick="calcThread()">Сверло под резьбу</button>
+                <div id="th-res" class="result-box" style="display:none;"></div>
+            </div>
+            <div class="card">
+                <h3>📏 Допуски и посадки (ISO)</h3>
+                <div class="form-group"><label>Размер (мм)</label><input type="number" id="tol-nom" value="40"></div>
+                <div class="form-group"><label>Поле</label>
+                    <select id="tol-fit"><option value="H7">H7 (отверстие)</option><option value="h6">h6 (вал)</option></select>
+                </div>
+                <button class="btn" onclick="calcTolerance()">Рассчитать</button>
+                <div id="tol-res" class="result-box" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 6. ИИ Чат -->
+        <div id="tab-ai" class="tab-pane">
+            <div class="quick-prompts">
+                <div class="prompt-chip" onclick="useQuickPrompt('Как убрать вибрацию при фрезеровании титана?')">⚡ Борьба с вибрацией</div>
+                <div class="prompt-chip" onclick="useQuickPrompt('Расшифруй параметры пластины WNMG080408')">🔍 Расшифровка пластины</div>
+                <div class="prompt-chip" onclick="useQuickPrompt('Как написать цикл нарезания резьбы G76 на Fanuc?')">📜 Цикл G76 Fanuc</div>
+            </div>
+            <div class="chat-container">
+                <div id="chat-messages" class="chat-messages">
+                    <div class="chat-bubble assistant">🤖 **ИИ-Технолог ЧПУ на связи!**
+Задавай любые вопросы по режимам резания, выбору инструмента, подбору пластин или отладке G-кода.</div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-user-input" placeholder="Спросить ИИ-технолога..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+                    <button class="btn" onclick="sendChatMessage()">➔</button>
+                </div>
+            </div>
+            <button class="btn btn-secondary" style="margin-top: 8px; font-size: 0.75rem;" onclick="clearChat()">🗑 Очистить диалог</button>
+        </div>
+
+        <!-- 7. Объединенный 3D Симулятор + STL Загрузчик -->
+        <div id="tab-viewer" class="tab-pane">
+            <div id="webgl-container"></div>
+            <input type="file" id="stl-file-input" accept=".stl" style="display:none" onchange="loadSTLFile(event)">
+            <div class="scene-controls">
+                <button class="btn" onclick="document.getElementById('stl-file-input').click()">📁 STL</button>
+                <button class="btn btn-secondary" onclick="addNewPart()">+ Примитив</button>
+                <button class="btn btn-secondary" onclick="loadAndRenderTrajectory()">▶ Траектория</button>
+            </div>
+        </div>
+
+        <!-- 8. PCD Генератор -->
+        <div id="tab-pcd" class="tab-pane">
+            <div class="card">
+                <h3>Генератор PCD</h3>
+                <div class="form-group"><label>Радиус R / Кол-во</label><input type="number" id="pcd-r" value="50"> <input type="number" id="pcd-count" value="6" style="margin-top:5px;"></div>
+                <div class="form-group"><label>Глубина</label><input type="number" id="pcd-depth" value="15"></div>
+                <button class="btn" onclick="calcPCD()">PCD G-код</button>
+                <div id="pcd-res" class="result-box" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 9. G/M Справочник -->
+        <div id="tab-codes" class="tab-pane">
+            <div class="card">
+                <h3>G/M Коды</h3>
+                <div class="form-group"><label>Код</label><input type="text" id="code-input" placeholder="G00"></div>
+                <button class="btn" onclick="searchCode()">Найти</button>
+                <div id="code-res" class="result-box" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Выпадающее меню «Ещё» -->
+    <div id="more-menu" class="popup-menu">
+        <button class="popup-btn" onclick="switchTab('turning', 'Токарка', this, true)">🟢 Токарка</button>
+        <button class="popup-btn" onclick="switchTab('handbook', 'Справочники', this, true)">📚 Справочники</button>
+        <button class="popup-btn" onclick="switchTab('ai', 'ИИ Технолог', this, true)">🤖 ИИ Чат</button>
+        <button class="popup-btn" onclick="switchTab('viewer', '3D Симулятор', this, true)">🧊 3D Симулятор</button>
+        <button class="popup-btn" onclick="switchTab('pcd', 'PCD Генератор', this, true)">⭕ PCD Сверление</button>
+        <button class="popup-btn" onclick="switchTab('codes', 'G/M Справочник', this, true)">📖 G/M Коды</button>
+    </div>
+
+    <!-- Нижняя навигационная панель -->
+    <nav class="bottom-nav">
+        <button class="nav-btn active" id="nav-regimes" onclick="switchTab('regimes', 'Фрезеровка', this)"><span class="nav-icon">⚙️</span>Фрезеровка</button>
+        <button class="nav-btn" id="nav-gcode" onclick="switchTab('gcode', 'Инспектор', this)"><span class="nav-icon">🛡️</span>Инспектор</button>
+        <button class="nav-btn" id="nav-timecost" onclick="switchTab('timecost', 'Время', this)"><span class="nav-icon">⏱</span>Время</button>
+        <button class="nav-btn" id="nav-more" onclick="toggleMoreMenu()"><span class="nav-icon">☰</span>Ещё</button>
+    </nav>
+
+    <script src="script.js"></script>
+    <script>
+        // Регистрация Service Worker для PWA офлайн-режима
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(() => console.log('Service Worker успешно зарегистрирован'))
+                    .catch((err) => console.log('Ошибка регистрации Service Worker:', err));
+            });
+        }
+    </script>
+</body>
+</html>
